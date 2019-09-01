@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using S2.BlackSwan.SupplyCollector;
 using S2.BlackSwan.SupplyCollector.Models;
@@ -75,14 +76,99 @@ namespace RedisSupplyCollector
             return options.ToString();
         }
 
+        private void FillObjectSamples(string prefix, JObject obj, string entityName, List<string> samples, int maxSamples)
+        {
+            var properties = obj.Properties();
+            foreach (var property in properties) {
+                string name = $"{prefix}{property.Name}";
+                if (name.Equals(entityName)) {
+                    if (property.Value.Type == JTokenType.Array) {
+                        var arr = (JArray)property.Value;
+                        for (int i = 0; i < arr.Count; i++)
+                        {
+                            samples.Add(arr[i].ToString());
+
+                            if (samples.Count >= maxSamples)
+                                return;
+                        }
+                    }
+                    else {
+                        samples.Add(property.Value.ToString());
+                    }
+
+                    if (samples.Count >= maxSamples)
+                        return;
+                }
+                else {
+                    if (property.Value.Type == JTokenType.Array) {
+                        var arr = (JArray)property.Value;
+                        for (int i = 0; i < arr.Count; i++)
+                        {
+                            var arrayItem = arr[i];
+
+                            if (arrayItem.Type == JTokenType.Object)
+                            {
+                                FillObjectSamples($"{prefix}{property.Name}.", (JObject)arrayItem, entityName, samples, maxSamples);
+                            }
+                        }
+                    } else if (property.Value.Type == JTokenType.Object) {
+                        FillObjectSamples($"{prefix}{property.Name}.", (JObject)property.Value, entityName, samples, maxSamples);
+                    }
+                }
+            }
+        }
         public override List<string> CollectSample(DataEntity dataEntity, int sampleSize) {
             var result = new List<string>();
 
             using (var redis =
-                ConnectionMultiplexer.Connect(ConfigurationOptions.Parse(dataEntity.Container.ConnectionString))) {
+                ConnectionMultiplexer.Connect(ConfigurationOptions.Parse(ParseConnectionString(dataEntity.Container.ConnectionString)))) {
                 var db = redis.GetDatabase();
 
-                result.Add(db.StringGet(dataEntity.Name));
+                if (_keyCollectionSeparator != null && _keyLevels > 0) {
+                    var server = redis.GetServer(redis.GetEndPoints()[0]);
+
+                    var keys = server.Keys();
+                    foreach (var key in keys) {
+                        var keyString = key.ToString();
+
+                        if (_keyPrefix != null) {
+                            if (!keyString.StartsWith(_keyPrefix))
+                                continue;
+                        }
+
+                        if (!keyString.StartsWith($"{dataEntity.Collection.Name}{_keyCollectionSeparator}"))
+                            continue;
+
+                        if (_complexValues) {
+                            var value = db.StringGet(key);
+                            if (!String.IsNullOrEmpty(value))
+                            {
+                                var obj = JObject.Parse(value);
+                                FillObjectSamples("", obj, dataEntity.Name, result, sampleSize);
+                            }
+                        }
+                        else {
+                            result.Add(db.StringGet(key));
+                        }
+
+                        if (result.Count >= sampleSize)
+                            break;
+                    }
+                }
+                else {
+                    if (_complexValues) {
+                        if ("json".Equals(_complexValueType)) {
+                            var value = db.StringGet(dataEntity.Collection.Name);
+                            if (!String.IsNullOrEmpty(value)) {
+                                var obj = JObject.Parse(value);
+                                FillObjectSamples("", obj, dataEntity.Name, result, sampleSize);
+                            }
+                        } else throw new ArgumentException($"Unknown complex value type {_complexValueType}");
+                    }
+                    else {
+                        result.Add(db.StringGet(dataEntity.Name));
+                    }
+                }
             }
 
             return result;

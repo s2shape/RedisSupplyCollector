@@ -76,8 +76,10 @@ namespace RedisSupplyCollectorTests
         [Fact]
         public void CollectSampleTest()
         {
-            var entity = new DataEntity("FROM_ADDR", DataType.String, "string", _container,
-                new DataCollection(new DataContainer() { ConnectionString = $"{_container.ConnectionString}/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json" }, "emails"));
+            var container = new DataContainer() { ConnectionString = $"{_container.ConnectionString}/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json" };
+
+            var entity = new DataEntity("from.addr", DataType.String, "string", container,
+                new DataCollection(container, "emails"));
 
             var samples = _instance.CollectSample(entity, 10);
             Assert.Equal(10, samples.Count);
