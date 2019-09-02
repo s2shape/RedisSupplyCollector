@@ -175,7 +175,61 @@ namespace RedisSupplyCollector
         }
 
         public override List<DataCollectionMetrics> GetDataCollectionMetrics(DataContainer container) {
-            throw new NotImplementedException();
+            var metrics = new List<DataCollectionMetrics>();
+
+            using (var redis =
+                ConnectionMultiplexer.Connect(
+                    ConfigurationOptions.Parse(ParseConnectionString(container.ConnectionString)))) {
+                var server = redis.GetServer(redis.GetEndPoints()[0]);
+                
+                var keys = server.Keys();
+
+                DataCollectionMetrics metric = null;
+
+                foreach (var key in keys) {
+                    var keyString = key.ToString();
+
+                    if (_keyPrefix != null) {
+                        if (!keyString.StartsWith(_keyPrefix))
+                            continue;
+                    }
+
+                    string collectionName = null;
+                    if (_keyCollectionSeparator != null && _keyLevels > 0) {
+                        var keyParts = keyString.Split(_keyCollectionSeparator);
+
+                        var collectionNameBuilder = new StringBuilder();
+                        for (int i = 0; i < _keyLevels && i < keyParts.Length; i++) {
+                            if (i > 0)
+                                collectionNameBuilder.Append(_keyCollectionSeparator);
+                            collectionNameBuilder.Append(keyParts[i]);
+                        }
+
+                        collectionName = collectionNameBuilder.ToString();
+                    }
+                    else {
+                        collectionName = keyString;
+                    }
+
+                    if (metric != null && metric.Name.Equals(collectionName)) {
+                        metric.RowCount++;
+                    }
+                    else {
+                        metric = metrics.Find(x => x.Name.Equals(collectionName));
+                        if (metric == null) {
+                            metric = new DataCollectionMetrics() {
+                                Name = collectionName,
+                                RowCount = 0
+                            };
+                            metrics.Add(metric);
+                        }
+
+                        metric.RowCount++;
+                    }
+                }
+            }
+
+            return metrics;
         }
 
         private void FillObjectEntities(DataContainer container, DataCollection collection, string prefix, JObject obj, List<DataEntity> entities)

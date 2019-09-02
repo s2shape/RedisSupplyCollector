@@ -74,6 +74,16 @@ namespace RedisSupplyCollectorTests
         }
 
         [Fact]
+        public void GetMetricsTest()
+        {
+            var metrics = _instance.GetDataCollectionMetrics(new DataContainer() { ConnectionString = $"{_container.ConnectionString}/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json" });
+
+            Assert.Equal(1, metrics.Count);
+            Assert.Equal("emails", metrics[0].Name);
+            Assert.Equal(200, metrics[0].RowCount);
+        }
+
+        [Fact]
         public void CollectSampleTest()
         {
             var container = new DataContainer() { ConnectionString = $"{_container.ConnectionString}/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json" };
