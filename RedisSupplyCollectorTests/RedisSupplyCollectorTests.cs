@@ -61,7 +61,7 @@ namespace RedisSupplyCollectorTests
 
             var (collections, entities) = _instance.GetSchema(new DataContainer(){ ConnectionString = $"{_container.ConnectionString}/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json"});
             
-            Assert.Equal(1, collections.Count);
+            Assert.True(collections.Count == 1);
             Assert.Equal("emails", collections[0].Name);
             Assert.Equal(30, entities.Count);
 
@@ -78,7 +78,7 @@ namespace RedisSupplyCollectorTests
         {
             var metrics = _instance.GetDataCollectionMetrics(new DataContainer() { ConnectionString = $"{_container.ConnectionString}/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json" });
 
-            Assert.Equal(1, metrics.Count);
+            Assert.True(metrics.Count == 1);
             Assert.Equal("emails", metrics[0].Name);
             Assert.Equal(200, metrics[0].RowCount);
         }
