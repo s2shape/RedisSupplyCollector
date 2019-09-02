@@ -76,8 +76,8 @@ namespace RedisSupplyCollector
             return options.ToString();
         }
 
-        private void FillObjectSamples(string prefix, JObject obj, string entityName, List<string> samples, int maxSamples)
-        {
+        private void FillObjectSamples(string prefix, JObject obj, string entityName, List<string> samples, int maxSamples, double probability) {
+            var r = new Random();
             var properties = obj.Properties();
             foreach (var property in properties) {
                 string name = $"{prefix}{property.Name}";
@@ -86,14 +86,16 @@ namespace RedisSupplyCollector
                         var arr = (JArray)property.Value;
                         for (int i = 0; i < arr.Count; i++)
                         {
-                            samples.Add(arr[i].ToString());
+                            if(r.NextDouble() < probability)
+                                samples.Add(arr[i].ToString());
 
                             if (samples.Count >= maxSamples)
                                 return;
                         }
                     }
                     else {
-                        samples.Add(property.Value.ToString());
+                        if (r.NextDouble() < probability)
+                            samples.Add(property.Value.ToString());
                     }
 
                     if (samples.Count >= maxSamples)
@@ -108,15 +110,25 @@ namespace RedisSupplyCollector
 
                             if (arrayItem.Type == JTokenType.Object)
                             {
-                                FillObjectSamples($"{prefix}{property.Name}.", (JObject)arrayItem, entityName, samples, maxSamples);
+                                FillObjectSamples($"{prefix}{property.Name}.", (JObject)arrayItem, entityName, samples, maxSamples, probability);
                             }
                         }
                     } else if (property.Value.Type == JTokenType.Object) {
-                        FillObjectSamples($"{prefix}{property.Name}.", (JObject)property.Value, entityName, samples, maxSamples);
+                        FillObjectSamples($"{prefix}{property.Name}.", (JObject)property.Value, entityName, samples, maxSamples, probability);
                     }
                 }
             }
         }
+
+        private long CalcRowCount(DataEntity dataEntity, IServer server) {
+            long rowCount = 0;
+            var keys = server.Keys(0, $"{_keyPrefix}{dataEntity.Collection.Name}*");
+            foreach (var unused in keys)
+                rowCount++;
+
+            return rowCount;
+        }
+
         public override List<string> CollectSample(DataEntity dataEntity, int sampleSize) {
             var result = new List<string>();
 
@@ -127,28 +139,23 @@ namespace RedisSupplyCollector
                 if (_keyCollectionSeparator != null && _keyLevels > 0) {
                     var server = redis.GetServer(redis.GetEndPoints()[0]);
 
-                    var keys = server.Keys();
+                    var rows = CalcRowCount(dataEntity, server);
+                    double pct = 0.05 + (double)sampleSize / (rows <= 0 ? sampleSize : rows);
+                    var r = new Random();
+
+                    var keys = server.Keys(0, $"{_keyPrefix}{dataEntity.Collection.Name}*");
                     foreach (var key in keys) {
-                        var keyString = key.ToString();
-
-                        if (_keyPrefix != null) {
-                            if (!keyString.StartsWith(_keyPrefix))
-                                continue;
-                        }
-
-                        if (!keyString.StartsWith($"{dataEntity.Collection.Name}{_keyCollectionSeparator}"))
-                            continue;
-
                         if (_complexValues) {
                             var value = db.StringGet(key);
                             if (!String.IsNullOrEmpty(value))
                             {
                                 var obj = JObject.Parse(value);
-                                FillObjectSamples("", obj, dataEntity.Name, result, sampleSize);
+                                FillObjectSamples("", obj, dataEntity.Name, result, sampleSize, pct);
                             }
                         }
                         else {
-                            result.Add(db.StringGet(key));
+                            if(r.NextDouble() < pct)
+                                result.Add(db.StringGet(key));
                         }
 
                         if (result.Count >= sampleSize)
@@ -161,7 +168,7 @@ namespace RedisSupplyCollector
                             var value = db.StringGet(dataEntity.Collection.Name);
                             if (!String.IsNullOrEmpty(value)) {
                                 var obj = JObject.Parse(value);
-                                FillObjectSamples("", obj, dataEntity.Name, result, sampleSize);
+                                FillObjectSamples("", obj, dataEntity.Name, result, sampleSize, 1);
                             }
                         } else throw new ArgumentException($"Unknown complex value type {_complexValueType}");
                     }
