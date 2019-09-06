@@ -1,0 +1,28 @@
+image: microsoft/dotnet:latest
+
+stages:
+  - build
+  - test
+
+variables:
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+
+before_script:
+  - dotnet restore
+
+build:
+  stage: build
+  script:
+    - dotnet build
+
+test:
+  stage: test
+  services:
+    - redis
+
+  script:
+    - apt-get update && apt-get install -y redis-tools
+    - redis-cli -h $REDIS_HOST < RedisSupplyCollectorTests/tests/emails-utf8.redis
+    - dotnet build
+    - dotnet test

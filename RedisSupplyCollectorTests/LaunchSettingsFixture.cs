@@ -12,6 +12,10 @@ namespace RedisSupplyCollectorTests
     {
         public LaunchSettingsFixture()
         {
+            if (!File.Exists("Properties/launchSettings.json")) {
+                return;
+            }
+
             using (var file = File.OpenText("Properties/launchSettings.json"))
             {
                 var reader = new JsonTextReader(file);
