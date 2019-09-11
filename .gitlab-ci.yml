@@ -9,7 +9,7 @@ variables:
   REDIS_PORT: 6379
 
 before_script:
-  - dotnet restore
+  - dotnet restore -s https://www.myget.org/F/s2/ -s https://api.nuget.org/v3/index.json
 
 build:
   stage: build

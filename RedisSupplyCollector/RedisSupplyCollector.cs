@@ -298,6 +298,17 @@ namespace RedisSupplyCollector
             }
         }
 
+        private DataType ParseDataType(RedisType redisType) {
+            switch (redisType) {
+                case RedisType.String:
+                case RedisType.Set:
+                case RedisType.List:
+                    return DataType.String;
+            }
+
+            return DataType.Unknown;
+        }
+
         public override (List<DataCollection>, List<DataEntity>) GetSchema(DataContainer container) {
             var collections = new List<DataCollection>();
             var entities = new List<DataEntity>();
@@ -348,8 +359,19 @@ namespace RedisSupplyCollector
                         if (_complexValues) {
                             if (!keyFound) {
                                 if ("json".Equals(_complexValueType)) {
-                                    var obj = JObject.Parse(db.StringGet(keyString));
-                                    FillObjectEntities(container, collection, "", obj, entities);
+                                    var type = db.KeyType(keyString);
+                                    if (type == RedisType.List) {
+                                        var obj = JObject.Parse(db.ListGetByIndex(keyString, 0));
+                                        FillObjectEntities(container, collection, "", obj, entities);
+                                    } else if (type == RedisType.Set || type == RedisType.SortedSet) {
+                                        var obj = JObject.Parse(db.SetRandomMember(keyString));
+                                        FillObjectEntities(container, collection, "", obj, entities);
+                                    }
+                                    else if (type == RedisType.String)
+                                    {
+                                        var obj = JObject.Parse(db.StringGet(keyString));
+                                        FillObjectEntities(container, collection, "", obj, entities);
+                                    }
                                 }
                                 else {
                                     throw new ArgumentException($"Unknown complex value type {_complexValueType}");
@@ -357,7 +379,8 @@ namespace RedisSupplyCollector
                             }
                         }
                         else {
-                            entities.Add(new DataEntity(keyEntityName, DataType.String, "String", container, collection)); //TODO: detect, may be it's a list?
+                            var type = db.KeyType(keyString);
+                            entities.Add(new DataEntity(keyEntityName, ParseDataType(type), type.ToString(), container, collection)); //TODO: detect, may be it's a list?
                         }
                     }
                     else {
