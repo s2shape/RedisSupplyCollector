@@ -1,4 +1,4 @@
-image: microsoft/dotnet:latest
+image: itsplus/s2shape-test-harness
 
 stages:
   - build
@@ -6,7 +6,7 @@ stages:
 
 variables:
   REDIS_HOST: redis
-  REDIS_PORT: 6379
+  REDIS_PORT: "6379"
 
 before_script:
   - dotnet restore -s https://www.myget.org/F/s2/ -s https://api.nuget.org/v3/index.json
@@ -22,7 +22,29 @@ test:
     - redis
 
   script:
-    - apt-get update && apt-get install -y redis-tools
-    - redis-cli -h $REDIS_HOST < RedisSupplyCollectorTests/tests/emails-utf8.redis
+    - ROOT_PROJECT_PATH=$(pwd)
     - dotnet build
+    - dotnet publish
+    - cd $ROOT_PROJECT_PATH/RedisSupplyCollectorLoader/bin/Debug/netcoreapp2.2/publish
+    - cp -f /SupplyCollectorDataLoader/SupplyCollectorDataLoader/bin/Debug/netcoreapp2.2/SupplyCollectorDataLoader.runtimeconfig.json .
+    - dotnet SupplyCollectorDataLoader.dll -init RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json
+    - dotnet SupplyCollectorDataLoader.dll -xunit RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json
+    - cd $ROOT_PROJECT_PATH
     - dotnet test
+
+load_test:
+  stage: test
+  services:
+    - redis
+
+  script:
+    - ROOT_PROJECT_PATH=$(pwd)
+    - dotnet build
+    - dotnet publish
+    - cd $ROOT_PROJECT_PATH/RedisSupplyCollectorLoader/bin/Debug/netcoreapp2.2/publish
+    - cp -f /SupplyCollectorDataLoader/SupplyCollectorDataLoader/bin/Debug/netcoreapp2.2/SupplyCollectorDataLoader.runtimeconfig.json .
+    - dotnet SupplyCollectorDataLoader.dll -init RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json
+    - dotnet SupplyCollectorDataLoader.dll -xunit RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json
+    - dotnet SupplyCollectorDataLoader.dll -samples RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json TestCollection Test1:int,Test2:string,Test3:bool,Test4:double,Test5 1000000
+    - cd $ROOT_PROJECT_PATH/RedisSupplyCollectorTests/bin/Debug/netcoreapp2.2/publish
+    - SupplyCollectorTestHarness
