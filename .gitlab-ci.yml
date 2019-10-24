@@ -1,4 +1,4 @@
-image: itsplus/s2shape-test-harness
+image: s2shape/s2shape-test-harness:latest
 
 stages:
   - build
