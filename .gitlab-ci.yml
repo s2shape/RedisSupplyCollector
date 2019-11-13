@@ -45,6 +45,6 @@ load_test:
     - cp -f /SupplyCollectorDataLoader/SupplyCollectorDataLoader/bin/Debug/netcoreapp2.2/SupplyCollectorDataLoader.runtimeconfig.json .
     - dotnet SupplyCollectorDataLoader.dll -init RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json
     - dotnet SupplyCollectorDataLoader.dll -xunit RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json
-    - dotnet SupplyCollectorDataLoader.dll -samples RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json TestCollection Test1:int,Test2:string,Test3:bool,Test4:double,Test5 1000000
+    - dotnet SupplyCollectorDataLoader.dll -samples RedisSupplyCollector redis:6379/key-collection-separator=:,key-levels=1,complex-values=true,complex-value-type=json TestCollection Test1:int,Test2:string,Test3:bool,Test4:double,Test5 100000
     - cd $ROOT_PROJECT_PATH/RedisSupplyCollectorTests/bin/Debug/netcoreapp2.2/publish
     - SupplyCollectorTestHarness
